@@ -1,0 +1,26 @@
+{
+  "name": "pull-sync",
+  "version": "1.0.0",
+  "description": "Synchronize pull-streams that are connected by an unsynchronized transport.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "tape test/*.js"
+  },
+  "pre-commit": [
+    "test"
+  ],
+  "keywords": [
+    "pull-stream",
+    "synchronization"
+  ],
+  "author": "Erick Lavoie",
+  "license": "MIT",
+  "dependencies": {
+    "debug": "^2.3.3",
+    "pull-stream": "^3.5.0"
+  },
+  "devDependencies": {
+    "pull-ws": "^3.2.8",
+    "tape": "^4.6.3"
+  }
+}
