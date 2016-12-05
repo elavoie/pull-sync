@@ -5,7 +5,8 @@
 - [x] Test with pull-ws
 - [x] Test with different versions of node
 - [x] Test interoperability between the browser and node
-- [ ] Publish on npm with the pull-sync name and add to the pull-stream doc
-- [ ] Check error conditions for various scenarios
+- [x] Publish on npm with the pull-sync name 
 - [ ] Check the difference with pull-credit 
+- [ ] Add to pull-stream doc
+- [ ] Check error conditions for various scenarios
 - [ ] Parameterize 'ask' with the number of elements before waiting for syncing again
