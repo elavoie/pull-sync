@@ -6,7 +6,6 @@
 - [x] Test with different versions of node
 - [x] Test interoperability between the browser and node
 - [x] Publish on npm with the pull-sync name 
-- [ ] Check the difference with pull-credit 
-- [ ] Add to pull-stream doc
+- [x] Check the difference with pull-credit 
 - [ ] Check error conditions for various scenarios
-- [ ] Parameterize 'ask' with the number of elements before waiting for syncing again
+- [ ] Compare implementation with other more latency and throughput efficient solutions
