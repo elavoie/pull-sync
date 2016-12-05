@@ -4,7 +4,8 @@
   "description": "Synchronize pull-streams that are connected by an unsynchronized transport.",
   "main": "src/index.js",
   "scripts": {
-    "test": "tape test/*.js"
+    "test": "tape test/*.js",
+    "example:browser": "browserify examples/client.js -o public/bundle.js -s client && open http://localhost:8080/ && node examples/server.js"
   },
   "pre-commit": [
     "test"
@@ -20,6 +21,8 @@
     "pull-stream": "^3.5.0"
   },
   "devDependencies": {
+    "browserify": "^13.1.1",
+    "express": "^4.14.0",
     "pull-ws": "^3.2.8",
     "tape": "^4.6.3"
   }
