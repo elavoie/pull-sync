@@ -15,9 +15,10 @@ function createSyncStream (stream) {
   }
 
   function send (abort, data) {
+    var send = null
     if (abort) {
       if (__send) {
-        let send = __send
+        send = __send
         __send = null
 
         log('send aborting')
@@ -33,7 +34,7 @@ function createSyncStream (stream) {
     }
 
     if (__send && buffer.length > 0) {
-      var send = __send
+      send = __send
       __send = null
 
       data = buffer.shift()
