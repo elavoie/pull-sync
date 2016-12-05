@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/elavoie/pull-sync.svg?branch=master)](https://travis-ci.org/elavoie/pull-sync)
+
 Synchronize pull-streams that are connected by an unsynchronized transport. Provides transparent back-pressure even if the transport does not provide it. Works with WebSockets when used with pull-ws.
 
 Amongst other things, it enables working with infinite streams and transparently splitting the processing of the stream between server and client.
