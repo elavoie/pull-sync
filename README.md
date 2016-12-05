@@ -66,5 +66,9 @@ infinite.  However for most (all?) finite streams it is unnecessary because the
 opening and closing of the stream serve as synchronization points and the
 underlying transport protocol performs flow-control.
 
-Finally, both the client and the server need to be synchronized (or both should
+Both the client and the server need to be synchronized (or both should
 not be). The behaviour when only one of the two is synchronized is unspecified.
+
+For a different solution to the problem that performs flow-control using an
+upper-bound on the size of the data that can be stored on the receiving side,
+see [pull-credit](https://github.com/dominictarr/pull-credit).
