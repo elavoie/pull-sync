@@ -1,169 +1,204 @@
-var toObject = require('./to-object')
+var toObject = require('pull-stream-function-to-object')
 
-function createSyncStream (stream) {
+module.exports = function (stream) {
   var log = require('debug')('pull-sync')
   var syncStream = null
-  var closed = false
-  var _sink = null
-  var source = null
-  var buffer = []
-  var __send = null
-  var listeningOnStream = false
+  var read = null
+  var remoteConnected = false // connection established
+  var remoteReady = false // remote is ready to send values
+  var remoteEnded = false // remote has no more values
+  var ready = false // we are ready so send values
+  var ended = false // we have no more values
+  var closed = false // we can close the stream
+
+  var sinkReadCbValuePrefix = '0'
+  var sinkReadCbErrPrefix = '1'
+  var sourceValueAsk = '2'
+  var sourceAbort = '3'
+  var sinkReadAssigned = '4'
+  var initMsg = '5 pull-sync: missing sync'
 
   if (typeof stream === 'function') {
     stream = toObject(stream)
   }
 
-  function send (abort, data) {
-    var send = null
-    if (abort) {
-      if (__send) {
-        send = __send
-        __send = null
+  // An output needs both values/errors
+  // and a callback to output but
+  // each are supplied from a different source.
+  // The output here provides a convenient synchronization
+  // abstraction.
+  function createOutput () {
+    var buffer = []
+    var _cb
 
-        log('send aborting')
-        send(abort)
+    // Interface:
+    //
+    // output(): drain remaining values
+    // output(err, value): stores value to send
+    // output.setCb(cb): set the next callback
+    //
+    function output (err, value) {
+      // Buffer err and value for
+      // sending in case we do not have
+      // a callback yet
+      if (arguments.length >= 1) {
+        buffer.push([err, value])
       }
 
+      // We have something to output
+      // and a callback, do it
+      if (_cb && buffer.length > 0) {
+        var cb = _cb
+        _cb = null
+        var call = buffer.shift()
+        cb(call[0], call[1])
+      }
+    }
+
+    output.setCb = function (cb) {
+      _cb = cb
+    }
+
+    return output
+  }
+
+  var output = createOutput()
+  var send = createOutput()
+
+  // First, send the initialization message
+  send(null, initMsg)
+
+  function next (err, value) {
+    if (err) {
+      ended = err
+      var suffix = JSON.stringify(err.message || err)
+      send(null, sinkReadCbErrPrefix + suffix)
+    } else {
+      send(null, sinkReadCbValuePrefix + JSON.stringify(value))
+    }
+    drain()
+  }
+
+  function parse (msg) {
+    if (msg[0] === sinkReadCbValuePrefix) {
+      output(null, JSON.parse(msg.slice(1)))
+    } else if (msg[0] === sinkReadCbErrPrefix) {
+      remoteEnded = JSON.parse(msg.slice(1))
+      if ((typeof remoteEnded) === 'string') {
+        output(new Error('Remote error: ' + remoteEnded))
+      } else {
+        output(remoteEnded)
+      }
+    } else if (msg[0] === sourceAbort) {
+      read(true, next)
+    } else if (msg[0] === sourceValueAsk) {
+      read(null, next)
+    } else if (msg[0] === sinkReadAssigned) {
+      log('remoteReady')
+      remoteReady = true
+    } else if (msg === initMsg) {
+      log('remoteConnected')
+      remoteConnected = true
+    } else {
+      log('Ignoring invalid message: ' + msg)
+    }
+  }
+
+  function drain () {
+    send()
+    output()
+    if (remoteConnected) {
+      var done = true
+      if (remoteReady) {
+        done = done && remoteEnded
+      }
+      if (ready) {
+        done = done && ended
+      }
+
+      if (remoteReady || ready) {
+        if (done) log('drain(): closing')
+        closed = done
+      }
+    }
+  }
+
+  // Prop 1
+  stream.sink(function (abort, cb) {
+    if (abort) {
+      log('stream.sink(' + abort + ')')
+      if (read) {
+        log('syncStream.sink:read(' + abort + ')')
+        read(abort, function (err) {
+          log('syncStream.sink:read:cb(' + err + ')')
+          output(closed = err)
+          cb(err)
+        })
+      } else {
+        output(closed = abort)
+        cb(closed)
+      }
       return
     }
 
-    if (arguments.length > 1) {
-      log('queueing data: ' + data)
-      buffer.push(data)
-    }
-
-    if (__send && buffer.length > 0) {
-      send = __send
-      __send = null
-
-      data = buffer.shift()
-      log('sending data: ' + data)
-      send(null, data)
-    } else {
-      if (!__send) {
-        log('stream did not request data yet, waiting')
-      }
-      if (buffer.length === 0) {
-        log('no data to send yet, waiting')
-      }
-    }
-    listenOnStream(null)
-  }
-
-  function sink (err, data) {
-    var sink = _sink
-    _sink = null
-
-    if (sink) {
-      if (err) return sink(err)
-
-      log('sinking data: ' + data)
-      sink(null, data)
-    } else {
-      if (!err) {
-        throw new Error('received data without prior ask')
-      }
-    }
-  }
-
-  function close (abort, cb) {
-    if (!closed) {
-      closed = abort
-      if (source) {
-        source(abort, function () {})
-      }
-      listenOnStream(abort)
-      send(abort)
-      sink(abort)
-      if (stream.hasOwnProperty('close') &&
-        typeof stream.close === 'function') {
-        stream.close()
-      }
-    }
-
-    if (cb) cb(abort)
-  }
-
-  stream.sink(function (abort, _send) {
-    log('stream requesting data')
-
-    if (closed) return _send(closed)
-    if (abort) return close(abort, _send)
-
-    __send = _send
-    send(null)
+    send.setCb(cb)
+    drain()
   })
 
-  function next (err, data) {
-    log('received event from source')
-
-    if (closed) return
-    if (err) return close(err)
-
-    if (typeof data !== 'string') {
-      throw new Error('Expected a string rather than ' + data)
-    }
-
-    log('received data from source, sending on stream')
-    send(null, '0' + data)
-  }
-
-  function listenOnStream (abort) {
-    if (listeningOnStream) return
-
-    listeningOnStream = true
-    if (abort) log('aborting stream')
-    else log('listening on stream')
-
-    stream.source(abort, function (err, data) {
-      listeningOnStream = false
-
-      log('received event from stream')
-
-      if (closed) return
-      if (err) return close(err)
-
-      if (data[0] === '0') { // Received data
-        log('received data from stream, sinking')
-        sink(null, data.slice(1))
-      } else if (data[0] === '1') { // Received ask
-        log('received ask, reading from source')
-        source(null, next)
-      } else {
-        throw new Error('Invalid data ' + data)
+  function listen () {
+    function next (err, msg) {
+      if (err) {
+        log('stream.source:cb(' + err + ')')
+        if (read) {
+          log('syncStream.sink:read(' + err + ')')
+          read(err, function (err) {
+            log('syncStream.sink:read:cb(' + err + ')')
+            output(closed = err)
+            drain()
+          })
+        } else {
+          output(closed = err)
+          drain()
+        }
+        return
       }
-    })
-  }
 
-  function listenOnSink (abort, cb) {
-    log('sink asking for data')
-
-    if (closed) return cb(closed)
-    if (abort) return close(abort, cb)
-
-    _sink = cb
-    send(abort, '1')
+      parse(msg)
+      drain()
+      stream.source(closed, next)
+    }
+    stream.source(closed, next)
   }
 
   syncStream = {
-    'sink': function (read) {
-      source = read
-
-      log('waiting')
-      listenOnStream(null)
+    sink: function (_read) {
+      ready = read = _read
+      send(closed, sinkReadAssigned)
     },
-    'source': listenOnSink
+    source: function (abort, cb) {
+      if (closed) {
+        log('syncStream.source(' + abort + ',' + (typeof cb) + ')')
+        cb(closed)
+        drain()
+        return
+      }
+
+      output.setCb(cb)
+      if (abort) send(null, sourceAbort)
+      else send(null, sourceValueAsk)
+      drain()
+    }
   }
 
   // Pass on other properties of the stream
   for (var p in stream) {
-    if (stream.hasOwnProperty(p) && !syncStream.hasOwnProperty(p)) {
-      syncStream[p] = stream[p]
+    if (stream.hasOwnProperty(p) &&
+      (typeof stream[p]) === 'function' &&
+      !syncStream.hasOwnProperty(p)) {
+      syncStream[p] = stream[p].bind(stream)
     }
   }
 
+  listen()
   return syncStream
 }
-
-module.exports = createSyncStream

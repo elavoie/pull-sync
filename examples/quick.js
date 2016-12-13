@@ -1,6 +1,6 @@
 var ws = require('pull-ws')
 var pull = require('pull-stream')
-var sync = require('../src/')
+var sync = require('..')
 
 function delay (ms) {
   return pull.asyncMap(function (data, cb) {

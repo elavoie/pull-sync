@@ -1,6 +1,6 @@
 {
   "name": "pull-sync",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Synchronize pull-streams that are connected by an unsynchronized transport.",
   "main": "src/index.js",
   "scripts": {
@@ -18,11 +18,13 @@
   "license": "MIT",
   "dependencies": {
     "debug": "^2.3.3",
-    "pull-stream": "^3.5.0"
+    "pull-stream-function-to-object": "^1.0.1"
   },
   "devDependencies": {
     "browserify": "^13.1.1",
     "express": "^4.14.0",
+    "pull-eager-buffer": "^1.0.3",
+    "pull-stream": "^3.5.0",
     "pull-ws": "^3.2.8",
     "tape": "^4.6.3"
   },

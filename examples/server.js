@@ -1,6 +1,6 @@
 var ws = require('pull-ws')
 var pull = require('pull-stream')
-var sync = require('../src/')
+var sync = require('..')
 var express = require('express')
 var path = require('path')
 var http = require('http')

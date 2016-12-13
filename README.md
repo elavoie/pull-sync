@@ -1,8 +1,23 @@
 [![Build Status](https://travis-ci.org/elavoie/pull-sync.svg?branch=master)](https://travis-ci.org/elavoie/pull-sync)
 
-Synchronize pull-streams that are connected by an unsynchronized transport. Provides transparent back-pressure even if the transport does not provide it. Works with WebSockets when used with pull-ws.
+Synchronizes pull-streams that are connected by an unsynchronized transport, one
+value at a time.
 
-Amongst other things, it enables working with infinite streams and transparently splitting the processing of the stream between server and client.
+* Provides transparent back-pressure even if the transport does not provide it. 
+* Works with WebSockets when used with pull-ws.
+
+Useful for working with infinite streams and for transparently splitting the
+processing of a stream between server and client.
+
+Both the client and the server need to be synchronized. Otherwise, if only one
+end is synchronized, the other end will receive messages it does not
+understand.
+
+For a different solution to the problem of flow-control that uses an
+upper-bound on the size of the data that can be stored on the receiving side
+for better throughput, see
+[pull-credit](https://github.com/dominictarr/pull-credit).
+
 
 # Quick Example
     
@@ -47,28 +62,111 @@ Amongst other things, it enables working with infinite streams and transparently
         })
     })
 
-A single element is emitted by the source for each element read by the sink.
-Synchronization is done through an 'ask' token between the two ends of the
-synced stream. When one end of the synced stream is read, it sends an ask
-token.  The other end replies to the token with the data from a single read of
-its source.
+Signature
+=========
 
-Therefore, as in the previous example, when the stream goes to and comes back
-from the server, an 'ask' token needs to go to and come back from the server
-for each element of the stream. The roundtrip latency between each element may
-(or may not) be an issue for your application.
+The following signature follows the [js module signature
+syntax](https://github.com/elavoie/js-module-signature-syntax) and conventions.
+All callbacks ('cb') have the '(err, value)' signature.
 
-If the stream has a 'close' method, it is called once either end of the synced
-stream aborts or produces an error.
+    sync: (stream: {
+        source: (abort, cb),
+        sink: (read: (abort, cb)),
+        ?...
+    }) =>
+    syncStream: {
+        sink: (read: (abort, cb)),
+        source: (abort, cb),
+        ?...
+    }
 
-Synchronization also works with half-duplex (one-way) streams both finite and
-infinite.  However for most (all?) finite streams it is unnecessary because the
-opening and closing of the stream serve as synchronization points and the
-underlying transport protocol performs flow-control.
+Properties
+==========
 
-Both the client and the server need to be synchronized (or both should
-not be). The behaviour when only one of the two is synchronized is unspecified.
+1. If *stream.source* or *stream.sink:read* aborts, *syncStream.sink* aborts and *syncStream.source:cb* always returns closed (err === true).
+2. Extra methods on *stream* are also on *syncStream*.
+3. Every event on syncStream has an equivalent message that will eventually be sent on *stream.sink* (see below in Approach).
+4. Every message received from *stream.source* will eventually be converted into an event on *syncStream*.
+5. No action on *syncStream* is initiated before receiving the corresponding message.
 
-For a different solution to the problem that performs flow-control using an
-upper-bound on the size of the data that can be stored on the receiving side,
-see [pull-credit](https://github.com/dominictarr/pull-credit).
+
+Approach
+========
+
+Events on *syncStream* are sinked in the *stream* as one of these messages.
+Events are named with the 'object.property' and 'function:argument' syntax,
+with the 'object.property' having higher precedence. Names refer to the
+signature above.
+
+| SyncStream event                     | Message sent                 |
+| ------------------------------------ | ---------------------------- |
+| syncStream.sink:read:cb:value        | '0' + JSON.stringify(value)  |
+| syncStream.sink:read:cb:err          | '1' + (err.message || true)  |
+| syncStream.source:null (value asked) | '2'                          |
+| syncStream.source:abort              | '3'                          |
+| syncStream.sink:read assigned        | '4'                          |
+| initialization                       | '5 pull-sync: missing sync'  |
+
+When receiving one of the messages, the following actions are invoked. The
+'function(argument)' syntax is used for denoting the function being called with
+what argument. Names refer to the signature above.
+
+| Message received            | Action                              
+| ----------------------------| --------------------------------------------- |
+| '0' + value                 | syncStream.source:cb(null, JSON.parse(value)) |
+| '1' + (err.message || true) | syncStream.source:cb(err)                     |
+| '2'                         | syncStream.sink:read(null, ...)               |
+| '3'                         | syncStream.sink:read(abort)                   |
+| '4'                         | internally set remote status to ready         |
+| '5 pull-sync: missing sync' | internally set remote status to connected     |
+
+In addition to establishing the connection, the '5...' message helps detecting a
+missing sync because it won't be consumed if the other end does not use sync().
+
+The behavior when two syncStreams are connected through a duplex stream, such
+as a WebSocket, is equivalent to: 
+
+    // Machine 1
+    var syncStream1 = {
+      sink: function (read) {
+        syncStream1.read = read
+      },
+      source: function (abort, cb) {
+        syncStream2.read(abort, cb)
+      }
+    }
+
+    // duplex stream (ex: WebSocket)
+
+    // Machine 2
+    var syncStream2 = {
+      sink: function (read) {
+        syncStream2.read = read
+      },
+      source: function (abort, cb) {
+        syncStream1.read(abort, cb)
+      }
+    }
+
+Therefore values are flowing from *syncStream1.read* to *syncStream2.source*,
+and from *syncStream2.read* to *syncStream1.source*.
+
+A stream may flow transparently between two differents computers by inverting
+the order of the sink and the source on one end:
+
+    // Machine 1
+    pull(
+      pull.count(),
+      syncStream1,
+      pull.drain()
+    )
+
+    // duplex stream (ex: WebSocket)
+
+    // Machine 2
+    pull(
+      syncStream2.source,
+      pull.through(),
+      syncStream2.sink 
+    )
+
