@@ -13,9 +13,7 @@ Both the client and the server need to be synchronized. Otherwise, if only one
 end is synchronized, the other end will receive messages it does not
 understand.
 
-For a different solution to the problem of flow-control that uses an
-upper-bound on the size of the data that can be stored on the receiving side
-for better throughput, see
+For a different solution that may provide better throughput, see
 [pull-credit](https://github.com/dominictarr/pull-credit).
 
 
