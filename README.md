@@ -99,7 +99,7 @@ signature above.
 | SyncStream event                     | Message sent                 |
 | ------------------------------------ | ---------------------------- |
 | syncStream.sink:read:cb:value        | '0' + JSON.stringify(value)  |
-| syncStream.sink:read:cb:err          | '1' + (err.message || true)  |
+| syncStream.sink:read:cb:err          | '1' + (err.message \|\| true)|
 | syncStream.source:null (value asked) | '2'                          |
 | syncStream.source:abort              | '3'                          |
 | syncStream.sink:read assigned        | '4'                          |
@@ -109,14 +109,14 @@ When receiving one of the messages, the following actions are invoked. The
 'function(argument)' syntax is used for denoting the function being called with
 what argument. Names refer to the signature above.
 
-| Message received            | Action                              
-| ----------------------------| --------------------------------------------- |
-| '0' + value                 | syncStream.source:cb(null, JSON.parse(value)) |
-| '1' + (err.message || true) | syncStream.source:cb(err)                     |
-| '2'                         | syncStream.sink:read(null, ...)               |
-| '3'                         | syncStream.sink:read(abort)                   |
-| '4'                         | internally set remote status to ready         |
-| '5 pull-sync: missing sync' | internally set remote status to connected     |
+| Message received              | Action                              
+| ----------------------------- | --------------------------------------------- |
+| '0' + value                   | syncStream.source:cb(null, JSON.parse(value)) |
+| '1' + (err.message \|\| true) | syncStream.source:cb(err)                     |
+| '2'                           | syncStream.sink:read(null, ...)               |
+| '3'                           | syncStream.sink:read(abort)                   |
+| '4'                           | internally set remote status to ready         |
+| '5 pull-sync: missing sync'   | internally set remote status to connected     |
 
 In addition to establishing the connection, the '5...' message helps detecting a
 missing sync because it won't be consumed if the other end does not use sync().
