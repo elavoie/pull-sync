@@ -1,5 +1,7 @@
 [![Build Status](https://travis-ci.org/elavoie/pull-sync.svg?branch=master)](https://travis-ci.org/elavoie/pull-sync)
 
+# pull-sync
+
 Synchronizes pull-streams that are connected by an unsynchronized transport, one
 value at a time.
 
