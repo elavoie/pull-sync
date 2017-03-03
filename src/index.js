@@ -80,6 +80,10 @@ module.exports = function (stream) {
   }
 
   function parse (msg) {
+    if (msg instanceof Buffer) {
+      msg = msg.toString()
+    }
+
     if (msg[0] === sinkReadCbValuePrefix) {
       output(null, JSON.parse(msg.slice(1)))
     } else if (msg[0] === sinkReadCbErrPrefix) {
