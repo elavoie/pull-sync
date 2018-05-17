@@ -178,11 +178,11 @@ module.exports = function (stream) {
   syncStream = {
     sink: function (_read) {
       ready = read = _read
+      send(closed, sinkReadAssigned)
       if (!listening) {
         listening = true
         listen()
       }
-      send(closed, sinkReadAssigned)
     },
     source: function (abort, cb) {
       if (closed) {
