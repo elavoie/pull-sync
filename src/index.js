@@ -10,6 +10,7 @@ module.exports = function (stream) {
   var ready = false // we are ready so send values
   var ended = false // we have no more values
   var closed = false // we can close the stream
+  var listening = false // we have started listening for messages
 
   var sinkReadCbValuePrefix = '0'
   var sinkReadCbErrPrefix = '1'
@@ -177,6 +178,10 @@ module.exports = function (stream) {
   syncStream = {
     sink: function (_read) {
       ready = read = _read
+      if (!listening) {
+        listening = true
+        listen()
+      }
       send(closed, sinkReadAssigned)
     },
     source: function (abort, cb) {
@@ -185,6 +190,11 @@ module.exports = function (stream) {
         cb(closed)
         drain()
         return
+      }
+
+      if (!listening) {
+        listening = true
+        listen()
       }
 
       output.setCb(cb)
@@ -203,6 +213,5 @@ module.exports = function (stream) {
     }
   }
 
-  listen()
   return syncStream
 }
